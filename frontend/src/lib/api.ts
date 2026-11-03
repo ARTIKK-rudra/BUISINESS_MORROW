@@ -4,6 +4,10 @@ import type { InventoryItem, Product, Sale, Supplier } from '@/types';
 
 export class ApiError extends Error { constructor(message: string, public status?: number) { super(message); this.name = 'ApiError'; } }
 const mode = process.env.NEXT_PUBLIC_DATA_MODE ?? 'mock';
+// This is supplied only by the isolated Playwright server. It lets browser
+// interaction tests intercept the voice endpoint while keeping normal preview
+// mode honestly disconnected from the API.
+const voiceE2eMode = process.env.NEXT_PUBLIC_VOICE_E2E === 'true';
 const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 // Keep the bearer token scoped to the current browser tab.  Production should use
 // an httpOnly-cookie BFF/session flow; sessionStorage only prevents a harmless page
@@ -104,7 +108,7 @@ export const api = {
   realtimeAnalytics: (): Promise<RealtimeAnalytics | null> => mode === 'http' ? request<RealtimeAnalytics>('/analytics/realtime') : Promise.resolve(null),
   askAssistant: (question: string, current_route = '/assistant', conversation_history: string[] = []) => mode === 'http' ? request<AssistantResponse>('/assistant/ask', { method: 'POST', body: JSON.stringify({ question, current_route, conversation_history }) }) : Promise.reject(new ApiError('Connect the API and sign in to ask questions about business data.')),
   askByVoice: (question: string, consent: boolean, current_route = '/voice-assistant', conversation_history: string[] = [], conversation_session?: string) => {
-    if (mode !== 'http') return Promise.reject(new ApiError('Connect the API and sign in to use voice with business data.'));
+    if (mode !== 'http' && !voiceE2eMode) return Promise.reject(new ApiError('Connect the API and sign in to use voice with business data.'));
     if (!currentAccessToken()) return Promise.reject(new ApiError('Sign in to use voice with business data.', 401));
     return request<AssistantResponse>('/voice/ask', { method: 'POST', body: JSON.stringify({ question, consent_to_store_transcript: consent, current_route, conversation_history, conversation_session }) });
   },

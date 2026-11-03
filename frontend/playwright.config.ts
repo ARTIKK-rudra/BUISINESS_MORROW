@@ -21,6 +21,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:3100',
     reuseExistingServer: false,
     timeout: 60_000,
-    env: { NEXT_PUBLIC_DATA_MODE: 'mock' },
+    env: { NEXT_PUBLIC_DATA_MODE: 'mock', NEXT_PUBLIC_VOICE_E2E: 'true' },
   },
 });
