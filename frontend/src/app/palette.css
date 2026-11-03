@@ -1,0 +1,12 @@
+.brand-row { display: flex; align-items: center; }
+.brand-row .brand { width: auto; flex: 0 0 auto; }
+.brand-edition { margin-left: 2px; }
+.palette-item.palette-active { background: var(--green-pale); color: var(--green); }
+.workspace-note { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-soft); color: var(--muted); }
+.workspace-note p { margin: 0; font-size: 9px; line-height: 1.6; }
+.workspace-note.note-ai { border-color: #dceaff; background: #f2f8ff; color: #426b92; }
+.workspace-note.note-risk { border-color: #f3e2bf; background: #fff9eb; color: #916d2b; }
+.recharts-cartesian-grid line { stroke: var(--chart-grid) !important; }
+.recharts-cartesian-axis-tick-value { fill: var(--muted) !important; }
+.recharts-default-tooltip { border: 1px solid var(--line) !important; border-radius: 7px !important; background: var(--panel) !important; color: var(--ink) !important; }
+.recharts-tooltip-label, .recharts-tooltip-item { color: var(--ink) !important; }

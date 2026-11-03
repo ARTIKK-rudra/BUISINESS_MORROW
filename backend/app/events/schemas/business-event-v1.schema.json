@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrow.local/schemas/business-event-v1.schema.json",
+  "title": "Morrow Business Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "schema_version", "business_id", "aggregate_type", "aggregate_id", "occurred_at", "payload"],
+  "properties": {
+    "event_id": {"type": "string", "format": "uuid", "description": "Stable outbox event identifier used for consumer idempotency."},
+    "event_type": {"type": "string", "enum": ["SALE_CREATED", "PAYMENT_COMPLETED", "REFUND_CREATED", "PURCHASE_CREATED", "INVENTORY_UPDATED", "STOCK_LOW", "STOCK_CRITICAL", "STOCK_OUT_OF_STOCK", "FORECAST_UPDATED", "ANOMALY_DETECTED", "REORDER_RECOMMENDED", "NOTIFICATION_CREATED", "GOODS_RECEIVED"]},
+    "schema_version": {"type": "integer", "minimum": 1},
+    "business_id": {"type": "string", "format": "uuid"},
+    "aggregate_type": {"type": "string", "minLength": 1, "maxLength": 80},
+    "aggregate_id": {"type": "string", "minLength": 1, "maxLength": 100},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "correlation_id": {"type": ["string", "null"], "maxLength": 100},
+    "payload": {"type": "object", "description": "Event-specific JSON; do not include secrets, credentials, or unnecessary personal data."}
+  }
+}

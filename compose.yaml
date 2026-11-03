@@ -1,0 +1,135 @@
+services:
+  redpanda:
+    image: redpandadata/redpanda:v25.2.5
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+      - "19644:9644"
+    volumes:
+      - morrow-redpanda:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  event-topics:
+    image: redpandadata/redpanda:v25.2.5
+    entrypoint: ["/bin/sh", "-c"]
+    command: >-
+      until rpk cluster health -X brokers=redpanda:9092 >/dev/null 2>&1; do sleep 2; done;
+      rpk topic create business.events.v1 --partitions 6 --replicas 1 -X brokers=redpanda:9092 || true;
+      rpk topic create business.events.dlq.v1 --partitions 3 --replicas 1 -X brokers=redpanda:9092 || true
+    depends_on:
+      redpanda:
+        condition: service_healthy
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: morrow
+      POSTGRES_USER: morrow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the project .env file}
+    ports:
+      - "5432:5432"
+    volumes:
+      - morrow-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U morrow -d morrow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build: ./backend
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://morrow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the project .env file}@db:5432/morrow
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the project .env file}
+      # Both local Next.js ports are allowed: 3000 is the default and 3001 is
+      # used when another development server already owns the default port.
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      LOG_LEVEL: INFO
+      ML_ARTIFACT_DIR: /service/var/models
+      REDPANDA_BROKERS: redpanda:9092
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      VOICE_CALL_MAX_ATTEMPTS: ${VOICE_CALL_MAX_ATTEMPTS:-3}
+      VOICE_TEST_MODE: ${VOICE_TEST_MODE:-true}
+      VOICE_LIVE_CALLS_ENABLED: ${VOICE_LIVE_CALLS_ENABLED:-false}
+      VOICE_PUBLIC_BASE_URL: ${VOICE_PUBLIC_BASE_URL:-}
+      VOICE_TRANSPORT: ${VOICE_TRANSPORT:-gather}
+      VOICE_PROVIDER: ${VOICE_PROVIDER:-twilio}
+      EXOTEL_ACCOUNT_SID: ${EXOTEL_ACCOUNT_SID:-}
+      EXOTEL_API_KEY: ${EXOTEL_API_KEY:-}
+      EXOTEL_API_TOKEN: ${EXOTEL_API_TOKEN:-}
+      EXOTEL_EXOPHONE: ${EXOTEL_EXOPHONE:-}
+      EXOTEL_REGION: ${EXOTEL_REGION:-in}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+      GEMINI_VOICE_TIMEOUT_SECONDS: ${GEMINI_VOICE_TIMEOUT_SECONDS:-12}
+    ports:
+      - "8000:8000"
+    volumes:
+      - morrow-models:/service/var/models
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  event-worker:
+    build: ./backend
+    command: ["python", "-m", "app.events.worker"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://morrow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the project .env file}@db:5432/morrow
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the project .env file}
+      LOG_LEVEL: INFO
+      ML_ARTIFACT_DIR: /service/var/models
+      REDPANDA_BROKERS: redpanda:9092
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      VOICE_CALL_MAX_ATTEMPTS: ${VOICE_CALL_MAX_ATTEMPTS:-3}
+      VOICE_TEST_MODE: ${VOICE_TEST_MODE:-true}
+      VOICE_LIVE_CALLS_ENABLED: ${VOICE_LIVE_CALLS_ENABLED:-false}
+      VOICE_PUBLIC_BASE_URL: ${VOICE_PUBLIC_BASE_URL:-}
+      VOICE_TRANSPORT: ${VOICE_TRANSPORT:-gather}
+      VOICE_PROVIDER: ${VOICE_PROVIDER:-twilio}
+      EXOTEL_ACCOUNT_SID: ${EXOTEL_ACCOUNT_SID:-}
+      EXOTEL_API_KEY: ${EXOTEL_API_KEY:-}
+      EXOTEL_API_TOKEN: ${EXOTEL_API_TOKEN:-}
+      EXOTEL_EXOPHONE: ${EXOTEL_EXOPHONE:-}
+      EXOTEL_REGION: ${EXOTEL_REGION:-in}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+      GEMINI_VOICE_TIMEOUT_SECONDS: ${GEMINI_VOICE_TIMEOUT_SECONDS:-12}
+    volumes:
+      - morrow-models:/service/var/models
+    depends_on:
+      api:
+        condition: service_healthy
+      event-topics:
+        condition: service_completed_successfully
+    restart: unless-stopped
+volumes:
+  morrow-postgres:
+  morrow-models:
+  morrow-redpanda:
